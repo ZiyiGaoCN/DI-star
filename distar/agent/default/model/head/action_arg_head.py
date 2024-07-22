@@ -191,7 +191,7 @@ class SelectedUnitsHead(nn.Module):
                 if self.whole_cfg.model.entity_reduce_type == 'selected_units_num' or 'attention' in self.whole_cfg.model.entity_reduce_type:
                     new_selected_units_one_hot = selected_units_one_hot.clone()  # inplace operation can not backward
                     end_flag[selected_units[:, i] == entity_num] = 1
-                    new_selected_units_one_hot[torch.arange(bs)[~end_flag], selected_units[:, i][~end_flag], :] = 1
+                    new_selected_units_one_hot[torch.arange(bs)[~end_flag.cpu()], selected_units[:, i][~end_flag.cpu()], :] = 1
                     if self.whole_cfg.model.entity_reduce_type == 'selected_units_num':
                         selected_units_emebedding = (key_embeddings * new_selected_units_one_hot).sum(dim=1)
                         selected_units_emebedding[selected_units_num != 0] = selected_units_emebedding[selected_units_num != 0] / \
@@ -285,7 +285,7 @@ class SelectedUnitsHead(nn.Module):
                 results_list.append(result)
                 logits_list.append(step_logits)
                 if self.whole_cfg.model.entity_reduce_type == 'selected_units_num' or 'attention' in self.whole_cfg.model.entity_reduce_type:
-                    selected_units_one_hot[torch.arange(bs)[~end_flag], result[~end_flag], :] = 1
+                    selected_units_one_hot[torch.arange(bs)[~end_flag.cpu()], result[~end_flag.cpu()], :] = 1
                     if self.whole_cfg.model.entity_reduce_type == 'selected_units_num':
                         selected_units_emebedding = (key_embeddings * selected_units_one_hot).sum(dim=1)
                         slected_num = selected_units_one_hot.sum(dim=1).squeeze(dim=1)

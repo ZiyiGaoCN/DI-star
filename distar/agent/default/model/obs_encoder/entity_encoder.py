@@ -80,6 +80,7 @@ class EntityEncoder(nn.Module):
         x = self.transformer(x, mask=mask)
         entity_embeddings = self.entity_fc(self.act(x))
 
+
         if self.whole_cfg.model.entity_reduce_type in ['entity_num', 'selected_units_num']:
             x_mask = x * mask.unsqueeze(dim=2)
             embedded_entity = x_mask.sum(dim=1) / entity_num.unsqueeze(dim=-1)

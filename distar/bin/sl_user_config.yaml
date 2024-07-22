@@ -1,5 +1,5 @@
 common:
-  experiment_name: 'sl_train'  # logger and checkpoint will be saved in this directory
+  experiment_name: 'sl_train_v4_T'  # logger and checkpoint will be saved in this directory
 communication:
   coordinator_ip: '127.0.0.1' # coordinator server address
   coordinator_port: 23333  # coordinator server port
@@ -34,12 +34,12 @@ learner:
     remote: False  # whether to use remote mode
     replay_actor_num_workers: 1  # only used in remote mode, determine the number of subprocesses in replay actor
     filter_action: False  # whether to filter actions in replay decoding
-    parse_race: ['Z']  # races allowed in replay decoding, decode 3 races use ['Z', 'T', 'P']
+    parse_race: ['T']  # races allowed in replay decoding, decode 3 races use ['Z', 'T', 'P']
     train_data_file: '' # either an absolute directory with replays or a file includes an absolute replay path at each line.
     epochs: 10          # repeat num of replay paths
-    batch_size: 2  # training batch size
-    trajectory_length: 4 
-    num_workers: 4      # should be larger than batch size
+    batch_size: 32  # training batch size
+    trajectory_length: 32 
+    num_workers: 50      # should be larger than batch size
   loss_weight:  # multiple heads loss weight
     # sl loss
     action_type: 30.0

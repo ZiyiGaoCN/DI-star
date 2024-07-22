@@ -41,9 +41,13 @@ class ActionTypeHead(nn.Module):
         self.action_num = self.cfg.action_num
         if self.whole_cfg.common.type == 'play':
             self.use_mask = True
+            self.race = self.whole_cfg.env.races[0]
         else:
             self.use_mask = False
-        self.race = 'zerg'
+        # self.race = 'zerg'
+
+        
+        
 
     def forward(self, lstm_output, scalar_context, action_type: Optional[torch.Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:
         x = self.project(lstm_output)

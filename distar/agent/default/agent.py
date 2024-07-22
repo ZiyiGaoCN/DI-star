@@ -195,63 +195,63 @@ class Agent:
         race = RACE_DICT[self._feature.requested_races[raw_ob.observation.player_common.player_id]]
         opponent_id = 1 if raw_ob.observation.player_common.player_id == 2 else 2
         opponent_race = RACE_DICT[self._feature.requested_races[opponent_id]]
-        if race == opponent_race:
-            mix_race = race
-        else:
-            mix_race = race + opponent_race
-        if self.z_idx is not None:
-            idx, z_type = random.choice(self.z_idx[self._map_name][mix_race][born_location_str])
-            z = z_data[self._map_name][mix_race][born_location_str][idx]
-        else:
-            z = random.choice(z_data[self._map_name][mix_race][born_location_str])
-        if len(z) == 5:
-            self._target_building_order, target_cumulative_stat, bo_location, self._target_z_loop, z_type = z
-        else:
-            self._target_building_order, target_cumulative_stat, bo_location, self._target_z_loop = z
-        self.use_cum_reward = True
-        self.use_bo_reward = True
-        if z_type is not None:
-            if z_type == 2 or z_type == 3:
-                self.use_cum_reward = False
-            if z_type == 1 or z_type == 3:
-                self.use_bo_reward = False
-        if random.random() > self._fake_reward_prob:
-            self.use_cum_reward = False
-        if random.random() > self._fake_reward_prob:
-            self.use_bo_reward = False
-        print('z_type', z_type, 'cum', self.use_cum_reward, 'bo', self.use_bo_reward)
+        # if race == opponent_race:
+        #     mix_race = race
+        # else:
+        #     mix_race = race + opponent_race
+        # if self.z_idx is not None:
+        #     idx, z_type = random.choice(self.z_idx[self._map_name][mix_race][born_location_str])
+        #     z = z_data[self._map_name][mix_race][born_location_str][idx]
+        # else:
+        #     z = random.choice(z_data[self._map_name][mix_race][born_location_str])
+        # if len(z) == 5:
+        #     self._target_building_order, target_cumulative_stat, bo_location, self._target_z_loop, z_type = z
+        # else:
+        #     self._target_building_order, target_cumulative_stat, bo_location, self._target_z_loop = z
+        # self.use_cum_reward = True
+        # self.use_bo_reward = True
+        # if z_type is not None:
+        #     if z_type == 2 or z_type == 3:
+        #         self.use_cum_reward = False
+        #     if z_type == 1 or z_type == 3:
+        #         self.use_bo_reward = False
+        # if random.random() > self._fake_reward_prob:
+        #     self.use_cum_reward = False
+        # if random.random() > self._fake_reward_prob:
+        #     self.use_bo_reward = False
+        # print('z_type', z_type, 'cum', self.use_cum_reward, 'bo', self.use_bo_reward)
 
-        if self._whole_cfg.agent.get('show_Z', False):
-            s = 'Map: {} Race: {}, Born location: ({}, {}), loop: {}, idx: {}\n'.format(map_name, mix_race, born_location[0], born_location[1], self._target_z_loop, idx)
-            s += 'Building order:\n'
-            for idx in range(len(self._target_building_order)):
-                a = self._target_building_order[idx]
-                if a != 0:
-                    action_type = BEGINNING_ORDER_ACTIONS[a]
-                    x, y = bo_location[idx] % 160, bo_location[idx] // 160
-                    s += '  {}, ({}, {})\n'.format(ACTIONS[action_type]['name'], x, y)
-            s += 'Cumulative stat:\n'
-            for i in target_cumulative_stat:
-                action_type = CUMULATIVE_STAT_ACTIONS[i]
-                s += '  {}\n'.format(ACTIONS[action_type]['name'])
-            print(s)
-        self._bo_norm = len(self._target_building_order)
-        self._cum_norm = len(target_cumulative_stat)
-        self._target_bo_location = torch.tensor(bo_location, dtype=torch.long)
-        self._target_building_order = torch.tensor(self._target_building_order, dtype=torch.long)
-        self._target_cumulative_stat = torch.zeros(NUM_CUMULATIVE_STAT_ACTIONS, dtype=torch.float)
-        self._target_cumulative_stat.scatter_(index=torch.tensor(target_cumulative_stat, dtype=torch.long), dim=0, value=1.)
-        if not self._whole_cfg.env.realtime:
-            if not self._clip_bo:
-                self._old_bo_reward = -levenshtein_distance(
-                                torch.as_tensor(self._behaviour_building_order, dtype=torch.long),
-                                self._target_building_order) /self._bo_norm
-            else:
-                self._old_bo_reward = torch.tensor(0.)
-            self._old_cum_reward = -hamming_distance(torch.as_tensor(self._behaviour_cumulative_stat, dtype=torch.float),
-                                                       self._target_cumulative_stat)/ self._cum_norm
-            self._total_bo_reward = torch.zeros(size=(), dtype=torch.float)
-            self._total_cum_reward = torch.zeros(size=(), dtype=torch.float)
+        # if self._whole_cfg.agent.get('show_Z', False):
+        #     s = 'Map: {} Race: {}, Born location: ({}, {}), loop: {}, idx: {}\n'.format(map_name, mix_race, born_location[0], born_location[1], self._target_z_loop, idx)
+        #     s += 'Building order:\n'
+        #     for idx in range(len(self._target_building_order)):
+        #         a = self._target_building_order[idx]
+        #         if a != 0:
+        #             action_type = BEGINNING_ORDER_ACTIONS[a]
+        #             x, y = bo_location[idx] % 160, bo_location[idx] // 160
+        #             s += '  {}, ({}, {})\n'.format(ACTIONS[action_type]['name'], x, y)
+        #     s += 'Cumulative stat:\n'
+        #     for i in target_cumulative_stat:
+        #         action_type = CUMULATIVE_STAT_ACTIONS[i]
+        #         s += '  {}\n'.format(ACTIONS[action_type]['name'])
+        #     print(s)
+        # self._bo_norm = len(self._target_building_order)
+        # self._cum_norm = len(target_cumulative_stat)
+        # self._target_bo_location = torch.tensor(bo_location, dtype=torch.long)
+        # self._target_building_order = torch.tensor(self._target_building_order, dtype=torch.long)
+        # self._target_cumulative_stat = torch.zeros(NUM_CUMULATIVE_STAT_ACTIONS, dtype=torch.float)
+        # self._target_cumulative_stat.scatter_(index=torch.tensor(target_cumulative_stat, dtype=torch.long), dim=0, value=1.)
+        # if not self._whole_cfg.env.realtime:
+        #     if not self._clip_bo:
+        #         self._old_bo_reward = -levenshtein_distance(
+        #                         torch.as_tensor(self._behaviour_building_order, dtype=torch.long),
+        #                         self._target_building_order) /self._bo_norm
+        #     else:
+        #         self._old_bo_reward = torch.tensor(0.)
+        #     self._old_cum_reward = -hamming_distance(torch.as_tensor(self._behaviour_cumulative_stat, dtype=torch.float),
+        #                                                self._target_cumulative_stat)/ self._cum_norm
+        #     self._total_bo_reward = torch.zeros(size=(), dtype=torch.float)
+        #     self._total_cum_reward = torch.zeros(size=(), dtype=torch.float)
 
 
     def _pre_process(self, obs):
@@ -261,9 +261,9 @@ class Agent:
             agent_obs = self._feature.transform_obs(obs['raw_obs'], padding_spatial=True)
         self._game_info = agent_obs.pop('game_info')
         self._game_step = self._game_info['game_loop']
-        if self._zero_z_exceed_loop and self._game_step > self._target_z_loop:
-            self._exceed_flag = False
-            self._target_z_loop = 99999999
+        # if self._zero_z_exceed_loop and self._game_step > self._target_z_loop:
+        #     self._exceed_flag = False
+        #     self._target_z_loop = 99999999
 
         last_selected_units = torch.zeros(agent_obs['entity_num'], dtype=torch.int8)
         last_targeted_unit = torch.zeros(agent_obs['entity_num'], dtype=torch.int8)
@@ -285,12 +285,16 @@ class Agent:
 
         agent_obs['scalar_info']['enemy_unit_type_bool'] = (self._enemy_unit_type_bool | agent_obs['scalar_info']['enemy_unit_type_bool']).to(torch.uint8)
 
-        agent_obs['scalar_info']['beginning_order'] = self._target_building_order * (self.use_bo_reward & self._exceed_flag)
-        agent_obs['scalar_info']['bo_location'] = self._target_bo_location * (self.use_bo_reward & self._exceed_flag)
-        if self.use_cum_reward and self._exceed_flag:
-            agent_obs['scalar_info']['cumulative_stat'] = self._target_cumulative_stat
-        else:
-            agent_obs['scalar_info']['cumulative_stat'] = self._target_cumulative_stat * 0 + self._zero_z_value
+        # agent_obs['scalar_info']['beginning_order'] = self._target_building_order * (self.use_bo_reward & self._exceed_flag)
+        # agent_obs['scalar_info']['bo_location'] = self._target_bo_location * (self.use_bo_reward & self._exceed_flag)
+        # if self.use_cum_reward and self._exceed_flag:
+        #     agent_obs['scalar_info']['cumulative_stat'] = self._target_cumulative_stat
+        # else:
+        #     agent_obs['scalar_info']['cumulative_stat'] = self._target_cumulative_stat * 0 + self._zero_z_value
+        agent_obs['scalar_info']['beginning_order'] = torch.zeros(20, dtype=torch.long)
+        agent_obs['scalar_info']['bo_location'] = torch.zeros(20, dtype=torch.long)
+        agent_obs['scalar_info']['cumulative_stat'] = torch.zeros(NUM_CUMULATIVE_STAT_ACTIONS, dtype=torch.float) + self._zero_z_value
+        
 
         self._observation = agent_obs
         if self._whole_cfg.actor.use_cuda:
@@ -304,8 +308,8 @@ class Agent:
         return model_input
 
     def step(self, observation):
-        if 'eval' in self._job_type and self._iter_count > 0 and not self._whole_cfg.env.realtime:
-            self._update_fake_reward(self._last_action_type, self._last_location, observation)
+        # if 'eval' in self._job_type and self._iter_count > 0 and not self._whole_cfg.env.realtime:
+        #     self._update_fake_reward(self._last_action_type, self._last_location, observation)
         model_input = self._pre_process(observation)
         self._stat_api.update(self._last_action_type, observation['action_result'][0], self._observation, self._game_step)
         if not self._gpu_batch_inference:
@@ -404,7 +408,7 @@ class Agent:
             for i, u in enumerate(action_info['selected_units'][:-1].tolist()):
                 selected_units += ' ' + str(get_unit_type(UNIT_TYPES[self._observation['entity_info']['unit_type'][u]])).split('.')[-1] + '({:.2f})'.format(torch.exp(logp['selected_units'][i]).item())
             selected_units += ' ' + 'end({:.2f})'.format(torch.exp(logp['selected_units'][-1]).item())
-        unit_types = set(self._observation['entity_info']['unit_type'][action_info['selected_units'][:-1]].tolist())
+        unit_types = set(self._observation['entity_info']['unit_type'][action_info['selected_units'][:-1].cpu()].tolist())
         target_unit = None
         if ACTIONS[action_type]['target_unit']:
             target_unit = str(get_unit_type(UNIT_TYPES[self._observation['entity_info']['unit_type'][action_info['target_unit'].item()]])).split('.')[-1]

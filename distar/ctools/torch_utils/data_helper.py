@@ -34,14 +34,14 @@ def to_device(item, device, ignore_keys=[]):
         if isinstance(item, str):
             return item
         else:
-            return [to_device(t, device) for t in item]
+            return [to_device(t, device,ignore_keys=ignore_keys) for t in item]
     elif isinstance(item, dict):
         new_item = {}
         for k in item.keys():
             if k in ignore_keys:
                 new_item[k] = item[k]
             else:
-                new_item[k] = to_device(item[k], device)
+                new_item[k] = to_device(item[k], device,ignore_keys=ignore_keys)
         return new_item
     elif isinstance(item, numbers.Integral) or isinstance(item, numbers.Real):
         return item

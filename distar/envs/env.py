@@ -131,7 +131,7 @@ class SC2Env(object):
         self._update_both_obs = self._cfg.get('update_both_obs', False)
         if self._human_flag:
             self._update_both_obs = False
-
+        print('#'*10,'version:',self._version,'#'*10,type(self._version))
         self._run_config = run_configs.get(version=self._version)
         self._parallel = run_parallel.RunParallel()  # Needed for multiplayer.
 

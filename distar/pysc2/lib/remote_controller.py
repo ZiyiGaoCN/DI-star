@@ -40,6 +40,13 @@ sw = stopwatch.sw
 
 Status = protocol.Status  # pylint: disable=invalid-name
 
+from loguru import logger
+# DEBUG
+logger.add("remote_controller.log", rotation="10 MB", level="INFO")
+
+def log(s):
+    pass
+    # logger.debug(s)
 
 class ConnectError(Exception):
     pass
@@ -186,6 +193,9 @@ class RemoteController(object):
     @sw.decorate
     def create_game(self, req_create_game):
         """Create a new game. This can only be done by the host."""
+        
+        log('create_game')
+        
         return self._client.send(create_game=req_create_game)
 
     @valid_status(Status.launched, Status.init_game)
@@ -193,6 +203,9 @@ class RemoteController(object):
     @sw.decorate
     def save_map(self, map_path, map_data):
         """Save a map into temp dir so create game can access it in multiplayer."""
+        
+        log('save_map')
+        
         return self._client.send(save_map=sc_pb.RequestSaveMap(
             map_path=map_path, map_data=map_data))
 
@@ -200,6 +213,9 @@ class RemoteController(object):
     @decorate_check_error(sc_pb.ResponseJoinGame.Error)
     @sw.decorate
     def join_game(self, req_join_game):
+        
+        log('join_game')
+        
         """Join a game, done by all connected clients."""
         return self._client.send(join_game=req_join_game)
 
@@ -207,6 +223,9 @@ class RemoteController(object):
     @decorate_check_error(sc_pb.ResponseRestartGame.Error)
     @sw.decorate
     def restart(self):
+        
+        log('restart')
+        
         """Restart the game. Only done by the host."""
         return self._client.send(restart_game=sc_pb.RequestRestartGame())
 
@@ -215,11 +234,17 @@ class RemoteController(object):
     @sw.decorate
     def start_replay(self, req_start_replay):
         """Start a replay."""
+        
+        log('start_replay')
+        
         return self._client.send(start_replay=req_start_replay)
 
     @valid_status(Status.in_game, Status.in_replay)
     @sw.decorate
     def game_info(self):
+        
+        log('game_info')
+        
         """Get the basic information about the game."""
         return self._client.send(game_info=sc_pb.RequestGameInfo())
 
@@ -228,6 +253,9 @@ class RemoteController(object):
     def data_raw(self, ability_id=True, unit_type_id=True, upgrade_id=True,
                  buff_id=True, effect_id=True):
         """Get the raw static data for the current game. Prefer `data` instead."""
+        
+        log('data_raw')
+        
         return self._client.send(data=sc_pb.RequestData(
             ability_id=ability_id, unit_type_id=unit_type_id, upgrade_id=upgrade_id,
             buff_id=buff_id, effect_id=effect_id))
@@ -240,6 +268,9 @@ class RemoteController(object):
     @sw.decorate
     def observe(self, disable_fog=False, target_game_loop=0):
         """Get a current observation."""
+        
+        log('observe')
+        
         obs = self._client.send(observation=sc_pb.RequestObservation(
             game_loop=target_game_loop,
             disable_fog=disable_fog))
@@ -272,12 +303,18 @@ class RemoteController(object):
         return obs
 
     def available_maps(self):
+        
+        log('available_maps')
+        
         return self._client.send(available_maps=sc_pb.RequestAvailableMaps())
 
     @valid_status(Status.in_game, Status.in_replay)
     @catch_game_end
     @sw.decorate
     def step(self, count=1):
+        
+        log('step')
+        
         """Step the engine forward by one (or more) step."""
         return self._client.send(step=sc_pb.RequestStep(count=count))
 
@@ -287,6 +324,9 @@ class RemoteController(object):
     @sw.decorate
     def actions(self, req_action):
         """Send a `sc_pb.RequestAction`, which may include multiple actions."""
+        
+        log('actions')
+        
         if FLAGS.sc2_log_actions and req_action.actions:
             sys.stderr.write(" Sending actions ".center(60, ">") + "\n")
             for action in req_action.actions:
@@ -297,6 +337,9 @@ class RemoteController(object):
 
     def act(self, action):
         """Send a single action. This is a shortcut for `actions`."""
+        log('action')
+        
+        
         if action and action.ListFields():  # Skip no-ops.
             return self.actions(sc_pb.RequestAction(actions=[action]))
 
@@ -305,6 +348,9 @@ class RemoteController(object):
     @sw.decorate
     def observer_actions(self, req_observer_action):
         """Send a `sc_pb.RequestObserverAction`."""
+        
+        log('observer_actions')
+        
         if FLAGS.sc2_log_actions and req_observer_action.actions:
             sys.stderr.write(" Sending observer actions ".center(60, ">") + "\n")
             for action in req_observer_action.actions:
@@ -315,12 +361,18 @@ class RemoteController(object):
 
     def observer_act(self, action):
         """Send a single observer action. A shortcut for `observer_actions`."""
+        
+        log('observer_act')
+        
         if action and action.ListFields():  # Skip no-ops.
             return self.observer_actions(
                 sc_pb.RequestObserverAction(actions=[action]))
 
     def chat(self, message, channel=sc_pb.ActionChat.Broadcast):
         """Send chat message as a broadcast."""
+        
+        log('chat')
+        
         if message:
             action_chat = sc_pb.ActionChat(
                 channel=channel, message=message)
@@ -336,12 +388,18 @@ class RemoteController(object):
     @sw.decorate
     def leave(self):
         """Disconnect from a multiplayer game."""
+        
+        log('leave')
+        
         return self._client.send(leave_game=sc_pb.RequestLeaveGame())
 
     @valid_status(Status.in_game, Status.in_replay, Status.ended)
     @sw.decorate
     def save_replay(self):
         """Save a replay, returning the data."""
+        
+        log('save_replay')
+        
         res = self._client.send(save_replay=sc_pb.RequestSaveReplay())
         return res.data
 
@@ -349,6 +407,9 @@ class RemoteController(object):
     @sw.decorate
     def debug(self, debug_commands):
         """Run a debug command."""
+        
+        log('debug')
+        
         if isinstance(debug_commands, sc_debug.DebugCommand):
             debug_commands = [debug_commands]
         return self._client.send(debug=sc_pb.RequestDebug(debug=debug_commands))
@@ -357,11 +418,17 @@ class RemoteController(object):
     @sw.decorate
     def query(self, query):
         """Query the game state."""
+        
+        log('query')
+        
         return self._client.send(query=query)
 
     @skip_status(Status.quit)
     @sw.decorate
     def quit(self):
+        
+        log('quit')
+        
         """Shut down the SC2 process."""
         try:
             # Don't expect a response.
@@ -373,11 +440,17 @@ class RemoteController(object):
 
     @sw.decorate
     def ping(self):
+        
+        log('ping')
+        
         return self._client.send(ping=sc_pb.RequestPing())
 
     @decorate_check_error(sc_pb.ResponseReplayInfo.Error)
     @sw.decorate
     def replay_info(self, replay_path):
+        
+        log('replay_info')
+        
         return self._client.send(replay_info=sc_pb.RequestReplayInfo(
             replay_path=replay_path))
 
