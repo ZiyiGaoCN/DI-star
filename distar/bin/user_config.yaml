@@ -12,6 +12,7 @@ feature:
   zergling_num: 8  # how many zerglings are allowed in Z
 actor:
   job_type: 'eval_test'
+  # job_type: 'llm'
   # one of ['train', 'eval', 'train_test', 'eval_test'], train used for RL, eval used for evaluation, '_test' indicates use only one environment without multiprocessing
   gpu_batch_inference: False  # whether to use gpu for batch inference
   env_num: 1  # enviroment number
@@ -36,9 +37,10 @@ env:
   races: ['terran', 'zerg']  # player races
   map_size_resolutions: [True, True] # if True, ignore minimap_resolutions
   minimap_resolutions: [[160, 152], [160, 152]]  # minimap feature resulution, used in interface option
-  realtime: False  # whether to use realtime in game, set True when play with human
+  realtime: True  # whether to use realtime in game, set True when play with human
   replay_dir: '.'  # where to save replay, '.' means saved at current working directory
   game_steps_per_episode: 100000  # maximum length in one game, the game will end when it reaches the game step
   update_both_obs: False  # request opponent's observation in own observation
   version: 'latest'  # SC2 game version
   visualize: True
+  remote: True

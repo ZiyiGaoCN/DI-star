@@ -191,10 +191,19 @@ class StarcraftProcess(object):
 
   def _launch(self, run_config, args, **kwargs):
     """Launch the process and return the process object."""
-    del kwargs
+    # del kwargs
     try:
-      with sw("popen"):
-        return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=run_config.cwd, env=run_config.env)
+      
+      if kwargs.get("remote", False) == False:
+        with sw("popen"):
+          return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=run_config.cwd, env=run_config.env)
+      else:
+        import requests
+        forward_res = requests.post('http://localhost:8002/remote_forward', json={'port':self._port})
+        res = requests.post('http://localhost:8002/execute', json={'port':self._port})
+                           
+        
+        
         # return subprocess.Popen(args, cwd=run_config.cwd, env=run_config.env)
     except OSError:
       logging.exception("Failed to launch")

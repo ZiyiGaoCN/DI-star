@@ -178,7 +178,7 @@ class SC2Env(object):
 
     def _launch_game(self):
         # Reserve a whole bunch of ports for the weird multiplayer implementation.
-        max_retry_times = 10
+        max_retry_times = 1
         for i in range(max_retry_times):
             try:
                 if self._num_agents > 1:
@@ -193,12 +193,12 @@ class SC2Env(object):
                         self._run_config.start(extra_ports=self._ports,
                                                want_rgb=False),
                         self._run_config.start(extra_ports=self._ports,
-                                               want_rgb=False, full_screen=True)
+                                               want_rgb=False, full_screen=True,remote = self._cfg.get('remote', False))
                     ]
                 else:
                     self._sc2_procs = [
                         self._run_config.start(extra_ports=self._ports,
-                                            want_rgb=False)
+                                            want_rgb=False, remote = self._cfg.get('remote', False))
                         for _ in range(self._num_agents)]
                 self._controllers = [p.controller for p in self._sc2_procs]
                 return

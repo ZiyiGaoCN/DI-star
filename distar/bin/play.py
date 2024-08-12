@@ -37,7 +37,7 @@ if __name__ == '__main__':
     user_config.actor.job_type = 'eval_test'
     user_config.common.type = 'play'
     # user_config.actor.episode_num = 1
-    user_config.env.realtime = False
+    # user_config.env.realtime = False
     args = get_args()
     user_config.env.replay_dir = args.replay_dir
     default_model_path = os.path.join(os.path.dirname(__file__), 'rl_model.pth')
