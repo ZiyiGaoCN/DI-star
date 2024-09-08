@@ -147,6 +147,10 @@ class SC2Env(object):
         self._ports = None
         self._random_delay_weights = self._cfg.get('random_delay_weights', [0, 0.7, 0.2, 0.1])
 
+        self.action_history = [[],[]]
+        self.action_results = [[],[]]
+        
+
     def _setup_interface(self):
         self._interface = []
         map_size = get_map_size(self._map_name)
@@ -317,6 +321,10 @@ class SC2Env(object):
         self._action_result = [[0]] * self._num_agents
         self._episode_count += 1
         races = self._cfg.races
+        
+        self.action_history = [[],[]]
+        self.action_results = [[],[]]
+        
         logging.info("Starting episode %s: [%s] on %s",
                      self._episode_count, ", ".join(races), self._map_name)
 
@@ -339,6 +347,10 @@ class SC2Env(object):
         max_skip_steps = 0
         for agent_idx in range(self._num_agents):
             if agent_idx in actions:
+                
+                filter_no_op = [action for action in actions[agent_idx] if action['func_id'] != 0]
+
+                self.action_history[agent_idx].extend(filter_no_op)
                 action, skip_steps = self.transform_action(actions[agent_idx])
                 transformed_actions.append(action)
                 self._next_obs_step[agent_idx] = self._episode_steps + skip_steps
@@ -364,7 +376,12 @@ class SC2Env(object):
                 if action_result[idx] is not None:
                     result = action_result[idx].result
                     self._action_result[valid_op_idx[idx]] = result # actions and results could be many
-
+                    # self.action_results[valid_op_idx[idx]].append(str(action_result[idx]).split(':')[-1].strip())
+            if len(action_result)>0 and action_result[0] is not None:
+                results = str(action_result[0]).split('\n')[:-1]
+                results = [r.split(':')[-1].strip() for r in results]
+                self.action_results[0].extend(results)
+                assert len(self.action_results[0]) == len(self.action_history[0])
         if not self._realtime:
             self._episode_steps += random_step
         step_mul = min(self._next_obs_step) - self._episode_steps
@@ -372,6 +389,7 @@ class SC2Env(object):
         target_game_loop = self._episode_steps + step_mul
         if not self._controllers[0].status_ended:  # May already have ended.
             steps = self._parallel.run((c.step, step_mul) for c in self._controllers)
+        print(target_game_loop)
         return self._observe(target_game_loop)
 
     def _observe(self, target_game_loop):

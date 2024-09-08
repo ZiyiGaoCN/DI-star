@@ -157,7 +157,7 @@ class Actor(object):
                             player_id = self.agents[player_index].player_id
                             if self._job_type == 'train':
                                 self.agents[player_index]._model_last_iter = self._comm.model_last_iter_dict[player_id].item()
-                            actions[player_index] = self.agents[player_index].step(obs)
+                            actions[player_index] = self.agents[player_index].step(obs, self._env.action_history[player_index],self._env.action_results[player_index])
                             agent_count += 1
                         agent_time = time.time() - agent_start_time
 

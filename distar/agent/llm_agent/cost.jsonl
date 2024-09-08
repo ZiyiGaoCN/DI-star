@@ -1,0 +1,115 @@
+{
+    "unit_name":"SCV",
+    "mineral_cost":50,
+    "food_cost":1,
+    "build_time":12,
+    "training_building":"CommandCenter",
+}
+
+{
+    "unit_name": "Banshee",
+    "mineral_cost": 150,
+    "gas_cost": 100,
+    "food_cost": 3,
+    "build_time": 43,
+    "training_building": "Starport with Tech Lab",
+    "max_energy": 200,
+    "energy_regen_per_second": 0.5625,
+    "movement_speed": 3.85,
+    "hit_points": 140,
+    "armor": 0,
+    "armor_type": "Light",
+    "attack_damage": 12,
+    "attack_type": "Backlash rockets",
+    "attack_targets": "Ground",
+    "attack_cooldown": 0.89,
+    "attack_range": 6,
+    "abilities": [
+        {
+            "name": "Cloaking Field",
+            "effect": "Enables Banshees to cloak",
+            "upgrade_time": 121
+        },
+        {
+            "name": "Hyperflight Rotors",
+            "effect": "Increases Banshee speed from 3.85 to 5.25",
+            "upgrade_time": null
+        }
+    ]
+}
+
+
+{
+    "unit_name": "Battlecruiser",
+    "mineral_cost": 400,
+    "gas_cost": 300,
+    "food_cost": 6,
+    "build_time": 64,
+    "training_building": "Starport with Tech Lab",
+    "required_building": "Fusion core",
+    "sight_range": 12,
+    "hit_points": 550,
+    "armor": 3,
+    "speed": 2.62,
+    "armament": {
+        "ATA_laser_batteries": {
+            "damage": 5,
+            "targets": "Air",
+            "cooldown": 0.16,
+            "range": 6
+        },
+        "ATS_laser_batteries": {
+            "damage": 8,
+            "targets": "Ground",
+            "cooldown": 0.16,
+            "range": 6
+        }
+    },
+    "abilities": {
+        "Tactical_Jump": "The user warps to the target location.",
+        "Yamato_Cannon": "Blasts a target with a devastating plasma cannon, causing 240 damage."
+    }
+}
+
+{
+    "unit_name": "Hellion",
+    "mineral_cost": 100,
+    "gas_cost": 0,
+    "food_cost": 2,
+    "build_time": 21,
+    "training_building": "Factory",
+    "requires": "None",
+    "speed": 5.95,
+    "hit_points": 90,
+    "armor": 0,
+    "attack_damage": "8 (+6 vs light)",
+    "attack_range": 5,
+    "abilities": {
+        "Infernal_Pre-Igniter": "Increases the Hellion's attack damage by +5 (to +11) vs light units. The flame changes to a blue color.",
+        "Transformation_Servos": "Allows Hellions to quickly transform into Hellbats.",
+        "Smart_Servos": "Greatly reduces transformation time when switching modes."
+    },
+    "upgrades_to": "Hellbat"
+}
+
+
+{
+    "unit_name": "Marauder",
+    "mineral_cost": 100,
+    "gas_cost": 25,
+    "food_cost": 2,
+    "build_time": 30,
+    "training_building": "Barracks",
+    "requires": "Tech lab/Tech reactor (attached)",
+    "speed": 2.25,
+    "hit_points": 125,
+    "armor": 1,
+    "attack_damage": "10 (+10 vs armored)",
+    "attack_range": 6,
+    "abilities": {
+        "Concussive_Shells": "Marauder attacks slow the movement speed of non-massive enemy units by 50%.",
+        "StimPack": "Enables affected infantry to attack and move 50% more quickly."
+    },
+    "type": "Biological, Armored",
+    "targets": "Ground"
+}

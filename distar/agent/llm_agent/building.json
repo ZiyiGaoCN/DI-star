@@ -1,0 +1,39 @@
+{
+    "SupplyDepot": {
+        "building_size": [2,2],
+        ""
+    },
+    "CommandCenter": {
+        "building_size": [5,5]
+    },
+    "Barracks": {
+        "building_size": [3,3]
+    },
+    "Factory": {
+        "building_size": [3,3]
+    },
+    "Starport": {
+        "building_size": [3,3]
+    },
+    "Armory": {
+        "building_size": [3,3]
+    },
+    "FusionCore": {
+        "building_size": [3,3]
+    },
+    "MissileTurret": {
+        "building_size": [2,2]
+    },
+    "Bunker": {
+        "building_size": [3,3]
+    },
+    "SensorTower": {
+        "building_size": [1,1]
+    },
+    "EngineeringBay": {
+        "building_size": [3,3]
+    },
+    "GhostAcademy": {
+        "building_size": [3,3]
+    }
+}

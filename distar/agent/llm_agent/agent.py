@@ -1,17 +1,19 @@
 import copy
-import json
+# import json
 import os
 import random
 import time
 
 import torch
-
 import re
+import requests
+
 import copy
 import json
 import os
 import random
 import torch
+import numpy as np
 
 from copy import deepcopy
 from collections import deque, defaultdict
@@ -20,12 +22,32 @@ from torch.utils.data._utils.collate import default_collate
 
 from .model.model import Model
 from .lib.actions import NUM_CUMULATIVE_STAT_ACTIONS, ACTIONS, BEGINNING_ORDER_ACTIONS, CUMULATIVE_STAT_ACTIONS, UNIT_ABILITY_TO_ACTION, QUEUE_ACTIONS, UNIT_TO_CUM, UPGRADE_TO_CUM
-from .lib.features import Features, SPATIAL_SIZE, BEGINNING_ORDER_ACTIONS, CUMULATIVE_STAT_ACTIONS, BEGINNING_ORDER_LENGTH, ScoreCategories, compute_battle_score, fake_step_data, fake_model_output
+from .lib.features import Features, SPATIAL_SIZE, BEGINNING_ORDER_ACTIONS, CUMULATIVE_STAT_ACTIONS, BEGINNING_ORDER_LENGTH, ScoreCategories, compute_battle_score, fake_step_data, fake_model_output , MINIMAP_FEATURES
 from .lib.stat import Stat, cum_dict
 from distar.ctools.torch_utils.metric import levenshtein_distance, hamming_distance, l2_distance
 from distar.pysc2.lib.units import get_unit_type
 from distar.pysc2.lib.static_data import UNIT_TYPES, NUM_UNIT_TYPES
 from distar.ctools.torch_utils import to_device
+
+from distar.pysc2.lib.features import PlayerRelative
+
+from distar.pysc2.lib.actions import _RAW_FUNCTIONS
+
+from openai import OpenAI
+client = OpenAI(
+    api_key="sk-3d05f75cc01c49499fd1c43291bb1cd9",
+    base_url="https://api.deepseek.com"
+)
+
+client_deepseek = OpenAI(
+    api_key="XAt3mciceDQzyIrT2dACKNtFNIqiE1ty",
+    base_url='https://api-openai-us1.deepseek.com:8443/v1'
+)
+
+import re
+import commentjson as json
+
+RAW_FUNCID_TO_IDX = {func.ability_id: idx for idx, func in enumerate(_RAW_FUNCTIONS)}
 
 RACE_DICT = {
     1: 'terran',
@@ -34,6 +56,201 @@ RACE_DICT = {
     4: 'random',
 }
 
+index_to_item = {
+    action['func_id']: idx \
+    for idx,action in enumerate(ACTIONS)
+}
+
+building_size = {
+    "SupplyDepot": {
+        "building_size": [2,2],
+    },
+    "CommandCenter": {
+        "building_size": [5,5]
+    },
+    "Barracks": {
+        "building_size": [3,3]
+    },
+    "Factory": {
+        "building_size": [3,3]
+    },
+    "Starport": {
+        "building_size": [3,3]
+    },
+    "Armory": {
+        "building_size": [3,3]
+    },
+    "FusionCore": {
+        "building_size": [3,3]
+    },
+    "MissileTurret": {
+        "building_size": [2,2]
+    },
+    "Bunker": {
+        "building_size": [3,3]
+    },
+    "SensorTower": {
+        "building_size": [1,1]
+    },
+    "EngineeringBay": {
+        "building_size": [3,3]
+    },
+    "GhostAcademy": {
+        "building_size": [3,3]
+    },
+}
+
+
+
+
+
+def extract_function_name(func_str):
+    # 使用正则表达式匹配函数名
+    match = re.search(r'<function (\w+) at 0x[0-9A-Fa-f]+>', func_str)
+    if match:
+        return match.group(1)
+    return None
+
+RAW_FUNCTIONS =[]
+
+for idx,funcs in enumerate(_RAW_FUNCTIONS):
+    RAW_FUNCTIONS.append({
+        "name": funcs[0].name,
+        "func_id": funcs[0].value,
+        "target_unit": extract_function_name(str(funcs[4])) == 'raw_cmd_unit',
+        "target_pt": extract_function_name(str(funcs[4])) == 'pt'
+    })
+
+def empty_location_nearby(buildable, loc, size, units):
+    bfs_queue = [loc]
+    visited = set()
+    
+    map_size = buildable.shape
+    
+    def check_empty(loc):
+        for i in range(-size[0]//2-1,size[0]//2+1):
+            for j in range(-size[1]//2-1,size[1]//2+1):
+                if not buildable[loc[1]+i,loc[0]+j]:
+                    return False
+                
+        for unit in units:
+            x,y = unit['pos']['x'], unit['pos']['y']
+            type_name = unit['unit_type'].name
+            if type_name in building_size.keys():
+                bx,by = building_size[type_name]['building_size']
+            elif unit['alliance'] == 'Enemy':
+                bx,by = 1,1
+            else:
+                bx,by = 3,3
+            delta_x = abs(x-loc[0])
+            delta_y = abs(y-loc[1])
+            if delta_x < (bx + size[1])/2 and delta_y < (by + size[0])/2:
+                return False
+        return True
+    
+    direction = [(0,1),(0,-1),(1,0),(-1,0)]
+    
+    while bfs_queue:
+        x, y = bfs_queue.pop(0)
+        for dir in direction:
+            new_x = x + dir[0]
+            new_y = y + dir[1]
+            if new_x < 0 or new_x >= buildable.shape[1] or new_y < 0 or new_y >= buildable.shape[0]:
+                continue
+            if (new_x,new_y) in visited:
+                continue
+            # if buildable[new_y,new_x] == 0:
+            #     continue 
+            
+            if check_empty((new_x,new_y)):
+                return (new_x,new_y)
+            
+            bfs_queue.append((new_x,new_y))
+            visited.add((new_x,new_y))
+    raise Exception('No empty location found')
+
+def cluster_mineral(units,height_map):
+    RESOURCE_SPREAD_THRESHOLD = 225
+    # geysers = self.state.vespene_geyser
+    # all_resources = self.state.resources
+
+    # Group nearby minerals together to form expansion locations
+    
+    
+    
+    resource_groups = []
+    for mf in units:
+        x,y = int(mf['pos']['x']), int(mf['pos']['y'])
+        # mf_height = self.get_terrain_height(mf.position)
+        mf_height = height_map[y,x]
+        for cluster in resource_groups:
+            # bases on standard maps dont have more than 10 resources
+            if len(cluster) == 10:
+                continue
+            
+            cluster_0_x, cluster_0_y = int(cluster[0]['pos']['x']), int(cluster[0]['pos']['y'])
+            cluster_0_height = height_map[cluster_0_y,cluster_0_x]
+            
+            if (x-cluster_0_x)**2 + (y-cluster_0_y)**2 < RESOURCE_SPREAD_THRESHOLD and mf_height == height_map[cluster_0_y,cluster_0_x]:
+                cluster.append(mf)
+                break
+        else:  # not found
+            resource_groups.append([mf])
+    # Filter out bases with only one mineral field
+    resource_groups = [cluster for cluster in resource_groups if len(cluster) > 1]
+    # distance offsets from a gas geysir
+    offsets = [(x, y) for x in range(-9, 10) for y in range(-9, 10) if 75 >= x ** 2 + y ** 2 >= 49]
+    centers = {}
+    # for every resource group:
+    for resources in resource_groups:
+        # possible expansion points
+        # resources[-1] is a gas geysir which always has (x.5, y.5) coordinates, just like an expansion
+        possible_points = [
+            (offset[0] + int(resources[-1]['pos']['x']), offset[1] + int(resources[-1]['pos']['y']))
+            for offset in offsets
+        ]
+        # filter out points that are too near
+        # possible_points = [
+        #     point
+        #     for point in possible_points
+        #     if all(point.distance_to(resource) >= (7 if resource in geysers else 6) for resource in resources)
+        # ]
+        
+        def filter_resource(x,y):
+            for resource in resources:
+                distance = 7 if resource['unit_type'].name == 'VespeneGeyser' else 6
+                rx,ry = int(resource['pos']['x']), int(resource['pos']['y'])  
+                if (x-rx)**2 + (y-ry)**2 < distance**2:
+                    return False
+            return True
+        
+        # possible_points = [
+        #     (x,y)
+        #     for x,y in possible_points
+        #     if all((x-rx)**2 + (y-ry)**2 >= (7 if resource in geysers else 6) for rx,ry in resources)
+        # ]
+        possible_points = [
+            (x,y)
+            for x,y in possible_points
+            if filter_resource(x,y)
+        ]
+        # choose best fitting point
+        #result = min(possible_points, key=lambda p: sum(p.distance_to(resource) for resource in resources))
+        results = []
+        for p in possible_points:
+            # dist = sum(p.distance_to(resource) for resource in resources)
+            dist = 0 
+            # dist = sum([(p[0]-r['pos']['x'])**2 + (p[1]-ry)**2 for r in resources])
+            
+            for r in resources:
+                rx,ry = int(r['pos']['x']), int(r['pos']['y'])
+                dist += (p[0]-rx)**2 + (p[1]-ry)**2
+            results.append((dist,p))
+        results.sort()
+        result = results[0][1]
+        centers[result] = resources
+    """ Returns dict with center of resources as key, resources (mineral field, vespene geyser) as value """
+    return centers
 
 def copy_input_data(shared_step_data, step_data, data_idx):
     entity_num = step_data['entity_num']
@@ -92,7 +309,7 @@ def copy_output_data(shared_step_data, step_data, data_indexes):
 
 class Agent:
     HAS_MODEL = True
-    HAS_TEACHER_MODEL = True
+    HAS_TEACHER_MODEL = False
     HAS_SUCCESSIVE_MODEL = False
 
     def __init__(self, cfg=None, env_id=0):
@@ -175,27 +392,27 @@ class Agent:
             self._push_count = 0
 
         # init Z
-        raw_ob = obs['raw_obs']
-        location = []
-        for i in raw_ob.observation.raw_data.units:
-            if i.unit_type == 59 or i.unit_type == 18 or i.unit_type == 86:
-                location.append([i.pos.x, i.pos.y])
-        assert len(location) == 1, 'no fog of war, check game version!'
-        self._born_location = deepcopy(location[0])
-        born_location = location[0]
-        born_location[0] = int(born_location[0])
-        born_location[1] = int(self._feature.map_size.y - born_location[1])
-        born_location_str = str(born_location[0] + born_location[1] * 160)
-        self._z_path = os.path.join(os.path.dirname(__file__), 'lib', self._z_path)
-        with open(self._z_path, 'r') as f:
-            self._z_data = json.load(f)
-            z_data = self._z_data
-        z_type = None
-        idx = None
-        raw_ob = obs['raw_obs']
-        race = RACE_DICT[self._feature.requested_races[raw_ob.observation.player_common.player_id]]
-        opponent_id = 1 if raw_ob.observation.player_common.player_id == 2 else 2
-        opponent_race = RACE_DICT[self._feature.requested_races[opponent_id]]
+        # raw_ob = obs['raw_obs']
+        # location = []
+        # for i in raw_ob.observation.raw_data.units:
+        #     if i.unit_type == 59 or i.unit_type == 18 or i.unit_type == 86:
+        #         location.append([i.pos.x, i.pos.y])
+        # assert len(location) == 1, 'no fog of war, check game version!'
+        # self._born_location = deepcopy(location[0])
+        # born_location = location[0]
+        # born_location[0] = int(born_location[0])
+        # born_location[1] = int(self._feature.map_size.y - born_location[1])
+        # born_location_str = str(born_location[0] + born_location[1] * 160)
+        # self._z_path = os.path.join(os.path.dirname(__file__), 'lib', self._z_path)
+        # with open(self._z_path, 'r') as f:
+        #     self._z_data = json.load(f)
+        #     z_data = self._z_data
+        # z_type = None
+        # idx = None
+        # raw_ob = obs['raw_obs']
+        # race = RACE_DICT[self._feature.requested_races[raw_ob.observation.player_common.player_id]]
+        # opponent_id = 1 if raw_ob.observation.player_common.player_id == 2 else 2
+        # opponent_race = RACE_DICT[self._feature.requested_races[opponent_id]]
         # if race == opponent_race:
         #     mix_race = race
         # else:
@@ -253,6 +470,7 @@ class Agent:
         #                                                self._target_cumulative_stat)/ self._cum_norm
         #     self._total_bo_reward = torch.zeros(size=(), dtype=torch.float)
         #     self._total_cum_reward = torch.zeros(size=(), dtype=torch.float)
+
 
 
     def _pre_process(self, obs):
@@ -349,27 +567,78 @@ class Agent:
             result['orders'] = [result['orders']]
                 
         return result   
+    
+    def prompt_input_v2(self,model_input,observation, action_history, action_results):
+        
+        prompt = f'you are a agent to help human to play SC2\n'
+        
+        Document_info='Here are some documents you can refer to:\n'
+        
+        Document_info += '1. Possible Actions:\n'
+        # for action in RAW_FUNCTIONS:
+            # Document_info += str(action) + '\n'
+        Document_info += '''{"operation": "No Operation", "action": {"name": "no_op", "func_id": 0, "target_unit": false, "target_pt": false}}        
+{"operation":"Train SCV","action":{"name":"Train_SCV_quick","func_id":520,"target_unit":false,"target_pt":false},"cost":{"minerals":50,"gas":0},"build_time":17}
+{"operation":"Build Supply Depot","action":{"name":"Build_SupplyDepot_pt","func_id":222,"target_unit":false,"target_pt":true},"cost":{"minerals":100,"gas":0},"build_time":30}
+{"operation":"Build Barracks","action":{"name":"Build_Barracks_pt","func_id":185,"target_unit":false,"target_pt":true},"cost":{"minerals":150,"gas":0},"build_time":65}
+{"operation":"Train Marauder","action":{"name":"Train_Marauder_quick","func_id":510,"target_unit":false,"target_pt":false},"cost":{"minerals":100,"gas":25},"build_time":30}
+{"operation":"Upgrade to Orbital Command","action":{"name":"Morph_OrbitalCommand_quick","func_id":394,"target_unit":false,"target_pt":false},"cost":{"minerals":150,"gas":0},"build_time":35}
+{"operation":"Train Marine","action":{"name":"Train_Marine_quick","func_id":511,"target_unit":false,"target_pt":false},"cost":{"minerals":50,"gas":0},"build_time":25}
+{"operation":"Add Reactor","action":{"name":"Build_Reactor_quick","func_id":206,"target_unit":false,"target_pt":false},"cost":{"minerals":50,"gas":50},"build_time":50}
+{"operation":"Add Tech Lab","action":{"name":"Build_TechLab_quick","func_id":223,"target_unit":false,"target_pt":false},"cost":{"minerals":50,"gas":25},"build_time":25}
+{"operation":"Attack Unit","action":{"name":"Attack_unit","func_id":3,"target_unit":true,"target_pt":false},"cost":{"minerals":0,"gas":0},"build_time":0}
+{"operation":"Attack Point","action":{"name":"Attack_pt","func_id":2,"target_unit":false,"target_pt":true},"cost":{"minerals":0,"gas":0},"build_time":0}
+{"operation":"Build Refinery","action":{"name":"Build_Refinery_pt","func_id":214,"target_unit":true,"target_pt":false},"cost":{"minerals":75,"gas":0},"build_time":30}
+{"operation":"Build Command Center","action":{"name":"Build_CommandCenter_pt","func_id":187,"target_unit":false,"target_pt":true},"cost":{"minerals":400,"gas":0},"build_time":100}
+{"operation": "Harvest Resources", "action": {"name": "Harvest_Gather_unit", "func_id": 102, "target_unit": true, "target_pt": false}}
+'''
+        Document_info = ''
+        # map_info = f'Current Map:{self._map_name}\n'
+        
+        # for f in MINIMAP_FEATURES:
+        height_map = MINIMAP_FEATURES.height_map.unpack(observation['raw_obs'].observation).copy()
+        height_map = np.flip(height_map, axis=0)
+        
+        buildable_map = MINIMAP_FEATURES.buildable.unpack(observation['raw_obs'].observation).copy()
+        buildable_map = np.flip(buildable_map, axis=0)
+        
+        pathable_map = MINIMAP_FEATURES.pathable.unpack(observation['raw_obs'].observation).copy()
+        pathable_map = np.flip(pathable_map, axis=0)
+        
+        visibility_map = MINIMAP_FEATURES.visibility_map.unpack(observation['raw_obs'].observation).copy()
+        visibility_map = np.flip(visibility_map, axis=0)
+        
+        time_info=f'Current Time:{observation["raw_obs"].observation.game_loop/22.4}s\n'
+        
+        # Race info
+        
+        ID_TO_RACE = {1: 'Terran', 2: 'Zerg', 3: 'Protoss', 4: 'Random'}
+        home_race = ID_TO_RACE[ model_input["scalar_info"]['home_race'].item() ]
+        away_race = ID_TO_RACE[ model_input["scalar_info"]['away_race'].item() ]
+        
+        race_info = f'Your Race: {home_race}\n' + f'Opponent Race:{away_race}\n'
+        
+        screen_param = ['minerals', 'vespene', 'food_used', 'food_cap', 'food_army', 'food_workers', 'idle_worker_count', 'army_count', 'warp_gate_count', 'larva_count']
+        screen_info ='here are some scalar infos:\n'
+        
+        for param in screen_param:
+            num = getattr(observation["raw_obs"].observation.player_common,param)
+            
+            screen_info += f'{param}: {num}\n'
 
-    def step(self, observation,_, __):
-        # if 'eval' in self._job_type and self._iter_count > 0 and not self._whole_cfg.env.realtime:
-        #     self._update_fake_reward(self._last_action_type, self._last_location, observation)
-        model_input = self._pre_process(observation)
-        self._stat_api.update(self._last_action_type, observation['action_result'][0], self._observation, self._game_step)
-        if not self._gpu_batch_inference:
-            model_output = self.model.compute_logp_action(**model_input)
-        else:
-            while True:
-                if self._signals[self._env_id] == 0:
-                    model_output = self._shared_output
-                    break
-                else:
-                    time.sleep(0.01)
-        action = self._post_process(model_output)
-        self._iter_count += 1
-        print(action)
-        
+        units_info = 'here are some units info:\n'
+
         total_units = model_input['entity_info']['unit_type'].shape[1]
-        
+
+        all_units = []
+
+        neutral_units = []
+
+        alliance_units = []
+
+        enemy_units = []
+
+        # unit
         for u in range(total_units):
             unit_type = get_unit_type(UNIT_TYPES[ model_input['entity_info']['unit_type'][0,u].item() ])
             
@@ -380,13 +649,303 @@ class Agent:
             info = self.unit_obs_to_info(str(info))
             
             info['unit_type'] = get_unit_type(info['unit_type'])
-                # pass      
-            # print(f"Unit {u}: {info}")
+            info['unit_type_name'] = info['unit_type'].name
+
+            if 'orders' in info:
+                orders = []
+                for order in info['orders']:
+                    orders.append({
+                        "ability": _RAW_FUNCTIONS[RAW_FUNCID_TO_IDX[order['ability_id']]].name,
+                        **order
+                    })
+                info['orders'] = orders
             
-            if info['alliance'] == 'Self':
-                if info['unit_type'].name == 'CommandCenter':
-                    print(info )
-        return action
+            all_units.append(info)
+
+            if info['alliance'] == 'Neutral':
+                neutral_units.append(info)
+                continue
+            elif info['alliance'] == 'Self':
+                alliance_units.append(info)
+            elif info['alliance'] == 'Enemy':
+                enemy_units.append(info)
+            units_info += str(info) + '\n'
+
+        history_info = 'Here are some actions history:\n'
+        # history_info = ''
+
+        for history,results in zip(action_history,action_results):
+            history_info += f'Action:{str(history)}\n'
+            history_info += f'Results:{results}\n'
+            history_info += '\n'
+
+        format_info = 'EXAMPLE JSON OUTPUT:\n'
+        format_info += '''
+{
+    "actions": [
+        {
+            "func_id": 520,
+            "name": "Train_SCV_quick",
+            "unit_tags": [an idle SCV tag],
+            "target_unit_tag": 0,
+            "location": [0, 0]
+        },
+        {
+            "func_id": 222,
+            "name": "Build_SupplyDepot_pt",
+            "unit_tags": [an idle SCV tag],
+            "target_unit_tag": 0,
+            "location": [an empty location]
+        }
+    ]
+}
+or 
+{
+    "actions": [
+        {
+            "func_id": 0,
+            "name": "no_op",
+            "unit_tags": [],
+            "target_unit_tag": 0,
+            "location": [0, 0]
+        }
+    ]
+}
+or 
+{
+    "actions": [
+        {
+            "func_id": 214,
+            "name": "Build_Refinery_pt",
+            "unit_tags": [an idle SCV tag],
+            "target_unit_tag": an vaspine gas tag,
+            "location": [0, 0]
+        }
+    ]
+}
+or 
+{
+    "actions": [
+        {
+            "func_id": 185,
+            "name": "Build_Barracks_pt",
+            "unit_tags": [an idle SCV tag],
+            "target_unit_tag": ,
+            "location": [an empty location]
+        }
+    ]
+}
+
+or 
+{
+    "actions": [
+        {
+            "func_id": 187,
+            "name": "Build_CommandCenter_pt",
+            "unit_tags": [an idle SCV tag],
+            "target_unit_tag": 0,
+            "location": [an mineral location]
+        }
+    ]
+}
+
+or 
+{
+    "actions": [
+        {
+            "func_id": 102,
+            "name": "Harvest_Gather_unit",
+            "unit_tags": [some SCV tags],
+            "target_unit_tag": an command center tag or an refinery tag,
+            "location": [0,0]
+        }
+    ]
+}
+
+or 
+{
+    "actions": [
+        {
+            "func_id": 394,
+            "name": "Morph_OrbitalCommand_quick",
+            "unit_tags": [some SCV tags],
+            "target_unit_tag": an command center tag,
+            "location": [0,0]
+        }
+    ]
+}
+
+or 
+{
+    "actions": [
+        {
+            "func_id": 511,
+            "name": "Train_Marine_quick",
+            "unit_tags": [some barracks tag],
+            "target_unit_tag": 0,
+            "location": [0, 0]
+        }
+    ]
+}
+or
+{
+    "actions": [
+        {
+            "func_id": 206,
+            "name": "Build_Reactor_quick",
+            "unit_tags": [some barracks tag, make sure it's idle],
+            "target_unit_tag": 0,
+            "location": [0, 0]
+        }
+    ]
+}
+or
+{
+    "actions": [
+        {
+            "func_id": 2,
+            "name": "Attack_pt",
+            "unit_tags": [some military unit tags],
+            "target_unit_tag": 0,
+            "location": [enemy location]
+        }
+    ]
+}
+
+
+'''
+
+        advice_info ='''Note that any action you choose should be legal, that's means you have to satisfy the following conditions:
+0. Execute the "No Operation" action if you don't want to do anything.
+1. Your minerals and vespene should be enough to do the action.
+2. The unit you choose should be able to perform the action (better no other order, but you can interupt an SCV gathering mine).
+3. You can only choose one unit to perform the action.
+4. You may execute multiple actions in one step, but make sure you have enough resources to do so.
+
+
+Some advance tips:
+1. The training queue of buildings like CommanderCenter, Barracks should be less than 2, to save resources.
+2. Always keep your CommanderCenter training SCV.
+3. Always choose an idle SCV to perform the action.
+'''
+
+        for unit in alliance_units:
+            if unit['unit_type'].name == 'CommandCenter':
+                base_x, base_y = unit['pos']['x'], unit['pos']['y']
+                break
+
+        empty_loc = empty_location_nearby(buildable_map, (int(base_x), int(base_y)), (6,6), all_units)
+        
+        empty_loc_info = f'Here is an empty location, your next building could be here: {empty_loc}\n'
+        empty_loc_info += f'Next Command Center location (note that this site can only be used for Command Center): (106,36)\n'
+        empty_loc_info += f'Third Command Center location (note that this site can only be used for Command Center): (71,21)\n'
+        empty_loc_info += f'Empty base location: (13,103)\n'
+
+        mine = cluster_mineral(neutral_units,height_map)
+
+        # print('base:',base_x,base_y)
+        # print('empty_loc:',empty_loc)
+
+        # print('mine:',mine)
+
+        mineral_info = f'Here are some minerals info:\n'
+        mineral_info += f'Your base is at ({base_x},{base_y})\n'
+        for m in mine.keys():
+            mineral_info += f'Mineral {m}: \n'
+            mineral_info += f'Location can setup base\n'
+            for unit in mine[m]:
+                if 'Geyser' in unit['unit_type'].name :
+                    mineral_info += f'vaspine gas location: {str(unit)}\n'
+
+        instruction_from_user = requests.get('http://localhost:8000/get_instruction').json()['instruction_from_user']
+#         instruction_from_user = '''
+# 1. As long as you have 50 mineral, and the command center are not training SCV, you should train SCV.
+# 2. Once you have 100 mineral, and there is no current supply depot under construction, you should build one supply depot.
+# '''
+
+        instruction_from_user_info = f'Here is the instruction from user, please follow it: {instruction_from_user}\n'
+
+        return prompt + Document_info + time_info + race_info + screen_info +\
+               units_info + mineral_info + empty_loc_info + history_info  + advice_info + \
+               format_info + instruction_from_user_info , all_units
+
+    def step(self, observation, action_history, action_results):
+        # if 'eval' in self._job_type and self._iter_count > 0 and not self._whole_cfg.env.realtime:
+        #     self._update_fake_reward(self._last_action_type, self._last_location, observation)
+        
+        # 多个agent，每个专攻一块
+        
+        model_input = self._pre_process(observation)
+        self._stat_api.update(self._last_action_type, observation['action_result'][0], self._observation, self._game_step)
+
+        # print(self.prompt_input(model_input,observation))
+        
+        prompt, units = self.prompt_input_v2(model_input,observation, action_history, action_results)
+        
+        os.makedirs(f'experiments/{observation["raw_obs"].observation.game_loop}',exist_ok=True)
+        
+        with open(f'experiments/{observation["raw_obs"].observation.game_loop}/prompt.txt','w') as f:
+            f.write(prompt)
+        with open(f'experiments/{observation["raw_obs"].observation.game_loop}/units.json','w') as f:
+            json.dump(units,f,indent=4)
+        
+        # 接口 get_unit_type(UNIT_TYPES[self._observation['entity_info']['unit_type'][u]])
+        
+        
+        # observation['raw_obs'].observation.player_common
+        
+        # if not self._gpu_batch_inference:
+        #     model_output = self.model.compute_logp_action(**model_input)
+        # else:
+        #     while True:
+        #         if self._signals[self._env_id] == 0:
+        #             model_output = self._shared_output
+        #             break
+        #         else:
+        #             time.sleep(0.01)
+        
+        # # ACTIONS
+        
+        # action = self._post_process(model_output)
+        # self._iter_count += 1
+        
+        response = client_deepseek.chat.completions.create(
+            model="gpt-4o-2024-08-06",
+            messages=[
+                {"role":"user","content":prompt}
+            ],
+            stream = False,
+            response_format={
+                'type': 'json_object'
+            }
+        ).choices[0].message.content
+        
+        
+        with open(f'experiments/{observation["raw_obs"].observation.game_loop}/response.txt','w') as f:
+            f.write(response)
+        
+        # json_pattern = re.compile(r'\{[^{}]*\}', re.DOTALL)
+    
+    # Find all JSON-like content in the text
+        # matches = json_pattern.findall(response)
+        
+        # if len(matches) == 0:
+        #     print('no json like content found')
+        #     raise Exception('no json like content found')
+        
+        matches = json.loads(response)['actions']
+
+        final_actions = []
+        
+        for action in matches:
+            # action = json.loads(match)
+            # break
+
+            action["time"] = observation["raw_obs"].observation.game_loop /22.4
+            action["queued"] = 0
+            action["skip_steps"] = 112
+            final_actions.append(action)
+        return final_actions
 
     def decollate_output(self, output, k=None, batch_idx=None):
         if isinstance(output, torch.Tensor):
@@ -484,8 +1043,7 @@ class Agent:
         print(s)
 
     def get_stat_data(self):
-        data = self._stat_api.get_stat_data()
-
+        data = self._stat_api.get_stat_datatarget_unit
         bo_distance = levenshtein_distance(torch.as_tensor(self._behaviour_building_order, dtype=torch.int),
                                            torch.as_tensor(self._target_building_order, dtype=torch.int)).item()
         bo_distance_with_location = levenshtein_distance(torch.as_tensor(self._behaviour_building_order, dtype=torch.int),
